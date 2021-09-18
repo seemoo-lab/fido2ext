@@ -1,0 +1,22 @@
+diff --git a/fido2/ctap2/extensions.py b/fido2/ctap2/extensions.py
+index 2a874ea..eb25c22 100644
+--- a/fido2/ctap2/extensions.py
++++ b/fido2/ctap2/extensions.py
+@@ -193,3 +193,17 @@ class MinPinLengthExtension(Ctap2Extension):
+     def process_create_input(self, inputs):
+         if self.is_supported() and inputs.get(self.NAME) is True:
+             return True
++
++class GreeterExtension(Ctap2Extension):
++    """
++    Implements the greeter CTAP2 / WebAuthn extension.
++    """
++
++    NAME = "greeter"
++
++    def process_create_input(self, inputs):
++        return self.is_supported() and inputs.get(self.NAME)
++
++    def process_create_output(self, auth_data):
++        if self.NAME in auth_data.extensions:
++            return {"greeter": auth_data.extensions.get(self.NAME)}
