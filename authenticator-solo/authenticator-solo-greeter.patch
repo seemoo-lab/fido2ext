@@ -1,0 +1,166 @@
+diff --git a/fido2/ctap.c b/fido2/ctap.c
+index 346c333..c0c5253 100644
+--- a/fido2/ctap.c
++++ b/fido2/ctap.c
+@@ -162,7 +162,7 @@ uint8_t ctap_get_info(CborEncoder * encoder)
+         ret = cbor_encode_uint(&map, RESP_extensions);
+         check_ret(ret);
+         {
+-            ret = cbor_encoder_create_array(&map, &array, 2);
++            ret = cbor_encoder_create_array(&map, &array, 3);
+             check_ret(ret);
+             {
+                 ret = cbor_encode_text_stringz(&array, "credProtect");
+@@ -170,6 +170,9 @@ uint8_t ctap_get_info(CborEncoder * encoder)
+ 
+                 ret = cbor_encode_text_stringz(&array, "hmac-secret");
+                 check_ret(ret);
++
++                ret = cbor_encode_text_stringz(&array, "greeter");
++                check_ret(ret);
+             }
+             ret = cbor_encoder_close_container(&map, &array);
+             check_ret(ret);
+@@ -456,6 +459,7 @@ static int ctap_make_extensions(CTAP_extensions * ext, uint8_t * ext_encoder_buf
+     uint8_t hmac_secret_output_is_valid = 0;
+     uint8_t hmac_secret_requested_is_valid = 0;
+     uint8_t cred_protect_is_valid = 0;
++    uint8_t greeter_is_valid = 0;
+     uint8_t hmac_secret_output[64];
+     uint8_t shared_secret[32];
+     uint8_t hmac[32];
+@@ -535,6 +539,12 @@ static int ctap_make_extensions(CTAP_extensions * ext, uint8_t * ext_encoder_buf
+         }
+     }
+ 
++    if (ext->greeter_present)
++    {
++        extensions_used += 1;
++        greeter_is_valid = 1;
++    }
++
+     if (extensions_used > 0)
+     {
+ 
+@@ -544,7 +554,20 @@ static int ctap_make_extensions(CTAP_extensions * ext, uint8_t * ext_encoder_buf
+             CborEncoder extension_output_map;
+             ret = cbor_encoder_create_map(&extensions, &extension_output_map, extensions_used);
+             check_ret(ret);
+-            if (hmac_secret_output_is_valid) {
++
++            if (greeter_is_valid)
++            {
++                {
++                    ret = cbor_encode_text_stringz(&extension_output_map, "greeter");
++                    check_ret(ret);
++
++                    ret = cbor_encode_text_stringz(&extension_output_map, (const char *)ext->greeter_response);
++                    check_ret(ret);
++                }
++            }
++
++            if (hmac_secret_output_is_valid)
++            {
+                 {
+                     ret = cbor_encode_text_stringz(&extension_output_map, "hmac-secret");
+                     check_ret(ret);
+diff --git a/fido2/ctap.h b/fido2/ctap.h
+index c08f936..4b27967 100644
+--- a/fido2/ctap.h
++++ b/fido2/ctap.h
+@@ -254,6 +254,8 @@ typedef struct
+     uint8_t hmac_secret_present;
+     CTAP_hmac_secret hmac_secret;
+     uint32_t cred_protect;
++    uint8_t greeter_present;
++    uint8_t greeter_response[32];
+ } CTAP_extensions;
+ 
+ typedef struct
+diff --git a/fido2/ctap_parse.c b/fido2/ctap_parse.c
+index 115bf4e..8cd9989 100644
+--- a/fido2/ctap_parse.c
++++ b/fido2/ctap_parse.c
+@@ -653,6 +653,8 @@ uint8_t ctap_parse_extensions(CborValue * val, CTAP_extensions * ext)
+     ret = cbor_value_get_map_length(val, &map_length);
+     check_ret(ret);
+ 
++    printf1(TAG_CTAP, "Parse extensions, count %d\r\n", map_length);
++
+     for (i = 0; i < map_length; i++)
+     {
+         if (cbor_value_get_type(&map) != CborTextStringType)
+@@ -677,7 +679,9 @@ uint8_t ctap_parse_extensions(CborValue * val, CTAP_extensions * ext)
+         check_ret(ret);
+ 
+ 
+-        if (strncmp(key, "hmac-secret",11) == 0)
++        printf1(TAG_CTAP, "Found extension: %s\r\n", key);
++
++        if (strncmp(key, "hmac-secret", 11) == 0)
+         {
+             if (cbor_value_get_type(&map) == CborBooleanType)
+             {
+@@ -706,6 +710,26 @@ uint8_t ctap_parse_extensions(CborValue * val, CTAP_extensions * ext)
+                 printf1(TAG_RED, "warning: credProtect request ignored for being wrong type\r\n");
+             }
+         }
++        else if (strncmp(key, "greeter", 7) == 0)
++        {
++            printf1(TAG_CTAP, "Received greeter request\r\n");
++            if (cbor_value_get_type(&map) == CborTextStringType)
++            {
++                uint8_t txt[30];
++                sz = sizeof(txt);
++                ret = cbor_value_copy_text_string(&map, (char *)txt, &sz, NULL);
++                check_ret(ret);
++
++                ext->greeter_present = 0x01;
++                strcpy((char *)ext->greeter_response, "Hello ");
++                strcpy((char *)ext->greeter_response + 6, txt);
++
++            }
++            else
++            {
++                printf1(TAG_RED, "warning: greeter request ignored for being wrong type\r\n");
++            }
++        }
+ 
+         ret = cbor_value_advance(&map);
+         check_ret(ret);
+diff --git a/pc/app.h b/pc/app.h
+index b5e8bd2..806f7af 100644
+--- a/pc/app.h
++++ b/pc/app.h
+@@ -15,8 +15,8 @@
+ 
+ #define DEBUG_LEVEL 1
+ 
+-#define ENABLE_U2F
+-#define ENABLE_U2F_EXTENSIONS
++//#define ENABLE_U2F
++//#define ENABLE_U2F_EXTENSIONS
+ //#define BRIDGE_TO_WALLET
+ 
+ void printing_init();
+diff --git a/pc/main.c b/pc/main.c
+index d72960e..b8b7537 100644
+--- a/pc/main.c
++++ b/pc/main.c
+@@ -34,14 +34,14 @@ int main(int argc, char *argv[])
+     set_logging_mask(
+ 		/*0*/
+ 		// TAG_GEN|
+-		// TAG_MC |
++		TAG_MC |
+ 		// TAG_GA |
+ 		TAG_WALLET |
+ 		TAG_STOR |
+ 		//TAG_NFC_APDU |
+ 		TAG_NFC |
+ 		// TAG_CP |
+-		// TAG_CTAP|
++		TAG_CTAP|
+ 		// TAG_HID|
+ 		TAG_U2F|
+ 		// TAG_PARSE |
