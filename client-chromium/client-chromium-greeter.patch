@@ -1,0 +1,220 @@
+diff --git a/content/browser/webauth/authenticator_common.cc b/content/browser/webauth/authenticator_common.cc
+index 6e3da047a7..9e19a3e376 100644
+--- a/content/browser/webauth/authenticator_common.cc
++++ b/content/browser/webauth/authenticator_common.cc
+@@ -82,6 +82,7 @@ enum class RequestExtension {
+   kLargeBlobWrite,
+   kCredBlob,
+   kGetCredBlob,
++  kGreeter,
+ };
+ 
+ namespace client_data {
+@@ -352,6 +353,7 @@ CreateMakeCredentialResponse(
+   response->transports = std::move(transports);
+ 
+   bool did_create_hmac_secret = false;
++  std::string greeter_response;
+   bool did_store_cred_blob = false;
+   const absl::optional<cbor::Value>& maybe_extensions =
+       response_data.attestation_object().authenticator_data().extensions();
+@@ -366,6 +368,13 @@ CreateMakeCredentialResponse(
+       did_create_hmac_secret = true;
+     }
+ 
++    const auto greeter_it =
++        extensions.find(cbor::Value(device::kExtensionGreeter));
++    if (greeter_it != extensions.end() &&
++        greeter_it->second.is_string()) {
++      greeter_response = std::move(greeter_it->second.GetString());
++    }
++
+     const auto cred_blob_it =
+         extensions.find(cbor::Value(device::kExtensionCredBlob));
+     if (cred_blob_it != extensions.end() && cred_blob_it->second.is_bool() &&
+@@ -400,6 +409,10 @@ CreateMakeCredentialResponse(
+         response->echo_cred_blob = true;
+         response->cred_blob = did_store_cred_blob;
+         break;
++      case RequestExtension::kGreeter:
++        response->echo_greeter = true;
++        response->greeter = std::move(greeter_response);
++        break;
+       case RequestExtension::kAppID:
+       case RequestExtension::kLargeBlobRead:
+       case RequestExtension::kLargeBlobWrite:
+@@ -509,6 +522,7 @@ blink::mojom::GetAssertionAuthenticatorResponsePtr CreateGetAssertionResponse(
+         break;
+       }
+       case RequestExtension::kHMACSecret:
++      case RequestExtension::kGreeter:
+       case RequestExtension::kCredProps:
+       case RequestExtension::kLargeBlobEnable:
+       case RequestExtension::kCredBlob:
+@@ -1101,6 +1115,10 @@ void AuthenticatorCommon::MakeCredential(
+     requested_extensions_.insert(RequestExtension::kHMACSecret);
+     ctap_make_credential_request_->hmac_secret = true;
+   }
++  if (options->greeter) {
++    requested_extensions_.insert(RequestExtension::kGreeter);
++    ctap_make_credential_request_->greeter = std::move(options->greeter);
++  }
+   if (options->cred_props) {
+     requested_extensions_.insert(RequestExtension::kCredProps);
+   }
+diff --git a/device/fido/ctap_make_credential_request.cc b/device/fido/ctap_make_credential_request.cc
+index 335283c55b..cbc91afe22 100644
+--- a/device/fido/ctap_make_credential_request.cc
++++ b/device/fido/ctap_make_credential_request.cc
+@@ -159,6 +159,11 @@ absl::optional<CtapMakeCredentialRequest> CtapMakeCredentialRequest::Parse(
+           return absl::nullopt;
+         }
+         request.cred_blob = extension.second.GetBytestring();
++      } else if (extension_name == kExtensionGreeter) {
++          if (!extension.second.is_string()) {
++              return absl::nullopt;
++          }
++          request.greeter = std::move(extension.second.GetString());
+       }
+     }
+   }
+@@ -293,6 +298,10 @@ AsCTAPRequestValuePair(const CtapMakeCredentialRequest& request) {
+     extensions.emplace(kExtensionCredBlob, *request.cred_blob);
+   }
+ 
++    if (request.greeter) {
++        extensions.emplace(kExtensionGreeter, cbor::Value(*request.greeter, cbor::Value::Type::STRING));
++    }
++
+   if (!extensions.empty()) {
+     cbor_map[cbor::Value(6)] = cbor::Value(std::move(extensions));
+   }
+diff --git a/device/fido/ctap_make_credential_request.h b/device/fido/ctap_make_credential_request.h
+index 8953136bcd..0bcd59b741 100644
+--- a/device/fido/ctap_make_credential_request.h
++++ b/device/fido/ctap_make_credential_request.h
+@@ -126,6 +126,9 @@ struct COMPONENT_EXPORT(DEVICE_FIDO) CtapMakeCredentialRequest {
+   // cred_blob contains an optional credBlob extension.
+   // https://fidoalliance.org/specs/fido-v2.1-rd-20201208/fido-client-to-authenticator-protocol-v2.1-rd-20201208.html#sctn-credBlob-extension
+   absl::optional<std::vector<uint8_t>> cred_blob;
++
++
++  absl::optional<std::string> greeter;
+ };
+ 
+ // Serializes MakeCredential request parameter into CBOR encoded map with
+diff --git a/device/fido/fido_constants.cc b/device/fido/fido_constants.cc
+index db46dbdde5..ea6c7d3ece 100644
+--- a/device/fido/fido_constants.cc
++++ b/device/fido/fido_constants.cc
+@@ -75,6 +75,7 @@ const char kExtensionHmacSecret[] = "hmac-secret";
+ const char kExtensionCredProtect[] = "credProtect";
+ const char kExtensionLargeBlobKey[] = "largeBlobKey";
+ const char kExtensionCredBlob[] = "credBlob";
++const char kExtensionGreeter[] = "greeter";
+ 
+ const base::TimeDelta kBleDevicePairingModeWaitingInterval =
+     base::TimeDelta::FromSeconds(2);
+diff --git a/device/fido/fido_constants.h b/device/fido/fido_constants.h
+index 24683a0bde..0640598ce4 100644
+--- a/device/fido/fido_constants.h
++++ b/device/fido/fido_constants.h
+@@ -451,6 +451,7 @@ COMPONENT_EXPORT(DEVICE_FIDO) extern const char kExtensionHmacSecret[];
+ COMPONENT_EXPORT(DEVICE_FIDO) extern const char kExtensionCredProtect[];
+ COMPONENT_EXPORT(DEVICE_FIDO) extern const char kExtensionLargeBlobKey[];
+ COMPONENT_EXPORT(DEVICE_FIDO) extern const char kExtensionCredBlob[];
++COMPONENT_EXPORT(DEVICE_FIDO) extern const char kExtensionGreeter[];
+ 
+ // Maximum number of seconds the browser waits for Bluetooth authenticator to
+ // send packets that advertises that the device is in pairing mode before
+diff --git a/device/fido/make_credential_request_handler.cc b/device/fido/make_credential_request_handler.cc
+index d12bd87649..0541dd7d53 100644
+--- a/device/fido/make_credential_request_handler.cc
++++ b/device/fido/make_credential_request_handler.cc
+@@ -303,6 +303,10 @@ bool ValidateResponseExtensions(
+       if (!request.cred_blob || !it.second.is_bool()) {
+         return false;
+       }
++    } else if (ext_name == kExtensionGreeter) {
++        if (!request.greeter || !it.second.is_string()) {
++            return false;
++        }
+     } else {
+       // Authenticators may not return unknown extensions.
+       return false;
+diff --git a/third_party/blink/public/mojom/webauthn/authenticator.mojom b/third_party/blink/public/mojom/webauthn/authenticator.mojom
+index 4ac7f89fc1..7bf4367148 100644
+--- a/third_party/blink/public/mojom/webauthn/authenticator.mojom
++++ b/third_party/blink/public/mojom/webauthn/authenticator.mojom
+@@ -96,6 +96,12 @@ struct MakeCredentialAuthenticatorResponse {
+   bool echo_hmac_create_secret;
+   bool hmac_create_secret;
+ 
++
++    // True if getClientExtensionResults() should contain a `greeter` extension output.
++    bool echo_greeter;
++    string? greeter;
++
++
+   // True if getClientExtensionResults() called on the returned
+   // PublicKeyCredential instance should contain a `prf` extension output. If
+   // so, |prf| contains the value of the `enabled` member.
+@@ -448,6 +454,8 @@ struct PublicKeyCredentialCreationOptions {
+   // https://fidoalliance.org/specs/fido-v2.0-rd-20180702/fido-client-to-authenticator-protocol-v2.0-rd-20180702.html#sctn-hmac-secret-extension
+   bool hmac_create_secret;
+ 
++  string? greeter;
++
+   // Whether the PRF extension was present. (Evaluation of the PRF at creation
+   // time is never supported currently, owing to a lack of hardware support.)
+   // https://w3c.github.io/webauthn/#prf-extension
+diff --git a/third_party/blink/renderer/modules/credentialmanager/authentication_extensions_client_inputs.idl b/third_party/blink/renderer/modules/credentialmanager/authentication_extensions_client_inputs.idl
+index 1e6318a7f3..2da8c2c95b 100644
+--- a/third_party/blink/renderer/modules/credentialmanager/authentication_extensions_client_inputs.idl
++++ b/third_party/blink/renderer/modules/credentialmanager/authentication_extensions_client_inputs.idl
+@@ -32,4 +32,6 @@ dictionary AuthenticationExtensionsClientInputs {
+   // https://fidoalliance.org/specs/fido-v2.1-rd-20201208/fido-client-to-authenticator-protocol-v2.1-rd-20201208.html#sctn-credBlob-extension
+   BufferSource credBlob;
+   boolean getCredBlob;
++
++  DOMString greeter;
+ };
+diff --git a/third_party/blink/renderer/modules/credentialmanager/authentication_extensions_client_outputs.idl b/third_party/blink/renderer/modules/credentialmanager/authentication_extensions_client_outputs.idl
+index 10496c46ba..74693b07f3 100644
+--- a/third_party/blink/renderer/modules/credentialmanager/authentication_extensions_client_outputs.idl
++++ b/third_party/blink/renderer/modules/credentialmanager/authentication_extensions_client_outputs.idl
+@@ -23,4 +23,6 @@ dictionary AuthenticationExtensionsClientOutputs {
+   // https://fidoalliance.org/specs/fido-v2.1-rd-20201208/fido-client-to-authenticator-protocol-v2.1-rd-20201208.html#sctn-credBlob-extension
+   boolean credBlob;
+   ArrayBuffer? getCredBlob;
++
++  DOMString greeter;
+ };
+diff --git a/third_party/blink/renderer/modules/credentialmanager/credential_manager_type_converters.cc b/third_party/blink/renderer/modules/credentialmanager/credential_manager_type_converters.cc
+index 79298af44e..57e95e5c05 100644
+--- a/third_party/blink/renderer/modules/credentialmanager/credential_manager_type_converters.cc
++++ b/third_party/blink/renderer/modules/credentialmanager/credential_manager_type_converters.cc
+@@ -542,6 +542,9 @@ TypeConverter<PublicKeyCredentialCreationOptionsPtr,
+     if (extensions->hasHmacCreateSecret()) {
+       mojo_options->hmac_create_secret = extensions->hmacCreateSecret();
+     }
++    if (extensions->hasGreeter()) {
++      mojo_options->greeter = extensions->greeter();
++    }
+ #if defined(OS_ANDROID)
+     if (extensions->hasUvm()) {
+       mojo_options->user_verification_methods = extensions->uvm();
+diff --git a/third_party/blink/renderer/modules/credentialmanager/credentials_container.cc b/third_party/blink/renderer/modules/credentialmanager/credentials_container.cc
+index 95e570018d..88dcf16d97 100644
+--- a/third_party/blink/renderer/modules/credentialmanager/credentials_container.cc
++++ b/third_party/blink/renderer/modules/credentialmanager/credentials_container.cc
+@@ -543,6 +543,9 @@ void OnMakePublicKeyCredentialComplete(
+   if (credential->echo_hmac_create_secret) {
+     extension_outputs->setHmacCreateSecret(credential->hmac_create_secret);
+   }
++  if (credential->echo_greeter) {
++    extension_outputs->setGreeter(credential->greeter);
++  }
+   if (credential->echo_cred_props) {
+     DCHECK(RuntimeEnabledFeatures::
+                WebAuthenticationResidentKeyRequirementEnabled());
