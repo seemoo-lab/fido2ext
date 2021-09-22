@@ -60,7 +60,7 @@ The [python-fido2 library](https://github.com/Yubico/python-fido2) by Yubico can
 git diff c42d9628a4f33d20c4401096fa8d3fc466d5b77f > client-python-greeter.patch
 ```
 
-See the [readme file](python-fido2/) in the `python-fido2` directory for more information on how to implement your own extensions.
+See the [readme file](client-python/) in the `python-fido2` directory for more information on how to implement your own extensions.
 
 
 
