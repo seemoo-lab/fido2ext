@@ -80,6 +80,15 @@ For debugging purposes, you can also run Solo 1 on your host as a softtoken, wit
 
 F. Putz, S. Schön, M. Hollick. **Future-Proof Web Authentication: Bring Your Own FIDO2 Extensions**. Accepted to appear in *4th International Workshop on Emerging Technologies for Authorization and Authentication (Co-Located with ESORICS 2021)*. October 2021.
 
+Any use of this project which results in an academic publication or other publication which includes a bibliography should include a citation to our paper.
+
+# License
+
+This repository is fully open source. Our goal is to help others create their own FIDO2 extensions. All software, unless otherwise noted, is licensed under MIT. All documentation, unless otherwise noted, is licensed under CC-BY-SA 4.0.
+
+# Contact
+
+* [Florentin Putz](https://www.seemoo.tu-darmstadt.de/team/fputz/) \<fputz@seemoo.de\>
 
 ## Powered By
 
