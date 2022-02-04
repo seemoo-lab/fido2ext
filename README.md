@@ -1,6 +1,11 @@
 # Bring Your Own FIDO2 Extensions
-This repository documents how to implement **custom FIDO2 extensions**. It contains supplementary material to our paper at ETAA 2021. We describe how to implement extensions on all parts of the FIDO2 stack: On the relying party *(website)*, on the client *(browser)*, and on the authenticator *(hardware token)*.
+This repository documents how to implement **custom FIDO2 extensions**. It contains supplementary material to [our paper at ETAA 2021](https://doi.org/10.1007/978-3-030-93747-8_2). We describe how to implement extensions on all parts of the FIDO2 stack: On the relying party *(website)*, on the client *(browser)*, and on the authenticator *(hardware token)*.
 
+Watch our [talk](https://www.youtube.com/watch?v=FYfluC21OoY):
+
+[![ETAA 2021 Talk](.img/talk_embed.png)](https://www.youtube.com/watch?v=FYfluC21OoY "ETAA 2021 Talk")
+
+# System Model
 
 ![FIDO2 System Model & Protocol Flow](.img/system_model.png)
 
@@ -78,9 +83,9 @@ For debugging purposes, you can also run Solo 1 on your host as a softtoken, wit
 
 # Read Our Paper
 
-F. Putz, S. Schön, M. Hollick. **Future-Proof Web Authentication: Bring Your Own FIDO2 Extensions**. Accepted to appear in *4th International Workshop on Emerging Technologies for Authorization and Authentication (Co-Located with ESORICS 2021)*. October 2021.
+We hope this project is useful for other researchers. Please cite this paper in your academic publications or in other publications which include a bibliography:
 
-Any use of this project which results in an academic publication or other publication which includes a bibliography should include a citation to our paper.
+F. Putz, S. Schön, M. Hollick. [**Future-Proof Web Authentication: Bring Your Own FIDO2 Extensions**](https://doi.org/10.1007/978-3-030-93747-8_2). In: 4th International Workshop on Emerging Technologies for Authorization and Authentication. ETAA 2021. Springer LNCS 13136, pp. 17–32, 2021. https://doi.org/10.1007/978-3-030-93747-8_2 [[Talk](https://www.youtube.com/watch?v=FYfluC21OoY)]
 
 # License
 
