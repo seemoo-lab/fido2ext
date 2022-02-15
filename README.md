@@ -85,7 +85,7 @@ For debugging purposes, you can also run Solo 1 on your host as a softtoken, wit
 
 We hope this project is useful for other researchers. Please cite this paper in your academic publications or in other publications which include a bibliography:
 
-F. Putz, S. Schön, M. Hollick. [**Future-Proof Web Authentication: Bring Your Own FIDO2 Extensions**](https://doi.org/10.1007/978-3-030-93747-8_2). In: 4th International Workshop on Emerging Technologies for Authorization and Authentication. ETAA 2021. Springer LNCS 13136, pp. 17–32, 2021. https://doi.org/10.1007/978-3-030-93747-8_2 [[Talk](https://www.youtube.com/watch?v=FYfluC21OoY)]
+F. Putz, S. Schön, M. Hollick. [**Future-Proof Web Authentication: Bring Your Own FIDO2 Extensions**](https://doi.org/10.1007/978-3-030-93747-8_2). In: 4th International Workshop on Emerging Technologies for Authorization and Authentication. ETAA 2021. Springer LNCS 13136, pp. 17–32, 2021. https://doi.org/10.1007/978-3-030-93747-8_2 [[Talk](https://www.youtube.com/watch?v=FYfluC21OoY)][[PDF](https://www.seemoo.tu-darmstadt.de/team/fputz/)]
 
 # License
 
